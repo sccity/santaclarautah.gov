@@ -54,7 +54,6 @@ spec:
         DOCKER_REGISTRY = 'sccity'
         APP_NAME = 'santaclarautah'
         NEW_VERSION = '0.0.0' // Default version, will be updated in Prepare Version stage
-        DOCKER_HOST = 'tcp://localhost:2375'
     }
 
     options {
@@ -117,7 +116,7 @@ spec:
                     script {
                         // Build Docker image
                         sh """
-                            docker build --platform linux/amd64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
+                            docker build --platform linux/x86_64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
                         """
 
                         // Basic test to verify WordPress files exist
