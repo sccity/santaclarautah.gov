@@ -8,6 +8,8 @@ def test = load 'jenkins/04_test.groovy'
 def image = load 'jenkins/image.groovy'
 def tag = load 'jenkins/tag.groovy'
 
+// Main pipeline definition
+// This pipeline handles WordPress setup, testing, and deployment to dev environment
 pipeline {
     agent {
         kubernetes {
