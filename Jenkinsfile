@@ -62,9 +62,16 @@ spec:
             steps {
                 container('jnlp') {
                     script {
-                        if (env.BRANCH_NAME != 'dev') {
+                        def branch = sh(
+                            script: 'git rev-parse --abbrev-ref HEAD',
+                            returnStdout: true
+                        ).trim()
+                        
+                        echo "Current branch: ${branch}"
+                        
+                        if (branch != 'dev') {
                             currentBuild.result = 'ABORTED'
-                            error('Stopping early: this build should only run on dev branch')
+                            error("Stopping early: this build should only run on dev branch (current: ${branch})")
                         }
                     }
                 }
