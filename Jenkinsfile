@@ -116,18 +116,30 @@ spec:
         stage('Build and Test') {
             steps {
                 container('docker') {
-                    script {
-                        // Build Docker image
-                        sh """
-                            docker build --platform linux/x86_64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} --push .
-                        """
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        script {
+                            // Login to Docker Hub first
+                            sh """
+                                echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                            """
+                            
+                            // Build Docker image
+                            sh """
+                                docker build --platform linux/x86_64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
+                            """
 
-                        // Basic test to verify WordPress files exist
-                        sh """
-                            docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -f /var/www/html/wp-config.php
-                            docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -d /var/www/html/wp-content/plugins
-                            docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -f /var/www/html/wp-content/plugins/elementor/elementor.php
-                        """
+                            // Push the image
+                            sh """
+                                docker push ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION}
+                            """
+
+                            // Basic test to verify WordPress files exist
+                            sh """
+                                docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -f /var/www/html/wp-config.php
+                                docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -d /var/www/html/wp-content/plugins
+                                docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -f /var/www/html/wp-content/plugins/elementor/elementor.php
+                            """
+                        }
                     }
                 }
             }
