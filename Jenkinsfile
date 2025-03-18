@@ -76,6 +76,14 @@ spec:
             }
         }
 
+        stage('Health Check') {
+            steps {
+                container('docker') {
+                    load './jenkins/06_health_check.groovy'
+                }
+            }
+        }
+
         stage('Cleanup') {
             container('docker') {
                 load './jenkins/05_cleanup.groovy'

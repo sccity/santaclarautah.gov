@@ -45,7 +45,29 @@ sh '''
     echo "Waiting for Apache to start..."
     sleep 5
     
-    # Test HTTP response - should be 302 (redirect to install page) for fresh WordPress
+    # Install WP-CLI
+    echo "Installing WP-CLI..."
+    docker exec $CONTAINER_ID curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+    docker exec $CONTAINER_ID chmod +x wp-cli.phar
+    docker exec $CONTAINER_ID mv wp-cli.phar /usr/local/bin/wp
+    
+    # Test WordPress core
+    echo "Testing WordPress core..."
+    docker exec $CONTAINER_ID wp core verify-checksums --path=/var/www/html
+    
+    # Test database connection
+    echo "Testing database connection..."
+    docker exec $CONTAINER_ID wp db check --path=/var/www/html
+    
+    # Test plugin installation
+    echo "Testing plugin installation..."
+    docker exec $CONTAINER_ID wp plugin list --path=/var/www/html --format=csv
+    
+    # Test theme installation
+    echo "Testing theme installation..."
+    docker exec $CONTAINER_ID wp theme list --path=/var/www/html --format=csv
+    
+    # Test HTTP response
     echo "Testing HTTP response..."
     HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080)
     
@@ -55,15 +77,14 @@ sh '''
         docker logs $CONTAINER_ID
         echo "MySQL container logs:"
         docker logs $MYSQL_CONTAINER
-        docker rm -f $CONTAINER_ID $MYSQL_CONTAINER
-        docker network rm $NETWORK_NAME
+        docker rm -f $CONTAINER_ID
         exit 1
     fi
     
     echo "WordPress installation is accessible and ready for setup (HTTP 302)"
     
     # Clean up
-    docker rm -f $CONTAINER_ID $MYSQL_CONTAINER
+    docker rm -f $CONTAINER_ID
     docker network rm $NETWORK_NAME
     
     echo "All tests passed successfully!"
