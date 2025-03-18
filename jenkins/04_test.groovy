@@ -22,13 +22,13 @@ sh '''
     # Create WordPress container with database connection
     echo "Starting WordPress container..."
     CONTAINER_ID=$(docker create --rm \
-        --network $NETWORK_NAME \
+        --network wordpress_test_network \
         -p 8080:8080 \
         -e WORDPRESS_DB_HOST=mysql \
         -e WORDPRESS_DB_NAME=wordpress \
         -e WORDPRESS_DB_USER=wordpress \
         -e WORDPRESS_DB_PASSWORD=wordpress \
-        $IMAGE_NAME)
+        ${IMAGE_NAME})
     
     if [ -z "$CONTAINER_ID" ]; then
         echo "Error: Failed to create WordPress container"
@@ -37,31 +37,62 @@ sh '''
     
     docker start $CONTAINER_ID
     
-    # Wait for Apache to start
+    # Wait for Apache to start with timeout
     echo "Waiting for Apache to start..."
-    sleep 5
+    TIMEOUT=30
+    COUNTER=0
+    while ! docker exec $CONTAINER_ID curl -s http://localhost:8080 >/dev/null; do
+        sleep 1
+        COUNTER=$((COUNTER + 1))
+        if [ $COUNTER -ge $TIMEOUT ]; then
+            echo "Error: Apache failed to start within $TIMEOUT seconds"
+            docker logs $CONTAINER_ID
+            docker rm -f $CONTAINER_ID
+            exit 1
+        fi
+    done
     
     # Install WP-CLI
     echo "Installing WP-CLI..."
-    docker exec $CONTAINER_ID curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-    docker exec $CONTAINER_ID chmod +x wp-cli.phar
-    docker exec $CONTAINER_ID mv wp-cli.phar /usr/local/bin/wp
+    if ! docker exec $CONTAINER_ID curl -s -o /var/www/html/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar; then
+        echo "Error: Failed to download WP-CLI"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
+    
+    docker exec $CONTAINER_ID chmod +x /var/www/html/wp-cli.phar
     
     # Test WordPress core
     echo "Testing WordPress core..."
-    docker exec $CONTAINER_ID wp core verify-checksums --path=/var/www/html
+    if ! docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar core verify-checksums --path=/var/www/html; then
+        echo "Error: WordPress core verification failed"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
     
     # Test database connection
     echo "Testing database connection..."
-    docker exec $CONTAINER_ID wp db check --path=/var/www/html
+    if ! docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar db check --path=/var/www/html; then
+        echo "Error: Database connection test failed"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
     
     # Test plugin installation
     echo "Testing plugin installation..."
-    docker exec $CONTAINER_ID wp plugin list --path=/var/www/html --format=csv
+    if ! docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar plugin list --path=/var/www/html --format=csv; then
+        echo "Error: Plugin list command failed"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
     
     # Test theme installation
     echo "Testing theme installation..."
-    docker exec $CONTAINER_ID wp theme list --path=/var/www/html --format=csv
+    if ! docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar theme list --path=/var/www/html --format=csv; then
+        echo "Error: Theme list command failed"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
     
     # Test HTTP response
     echo "Testing HTTP response..."
@@ -71,8 +102,6 @@ sh '''
         echo "Error: WordPress returned HTTP $HTTP_RESPONSE (expected 302 for fresh install)"
         echo "WordPress container logs:"
         docker logs $CONTAINER_ID
-        echo "MySQL container logs:"
-        docker logs $MYSQL_CONTAINER
         docker rm -f $CONTAINER_ID
         exit 1
     fi

@@ -43,6 +43,11 @@ spec:
         }
     }
 
+    environment {
+        IMAGE_TAG = "${GIT_COMMIT[0..6]}-dev"
+        IMAGE_NAME = "sccity/santaclarautah:${IMAGE_TAG}"
+    }
+
     stages {
         stage('Initialize') {
             steps {
@@ -60,18 +65,13 @@ spec:
             }
         }
 
-        stage('Prepare') {
-            steps {
-                container('docker') {
-                    load './jenkins/03_prepare.groovy'
-                }
-            }
-        }
-
         stage('Build') {
             steps {
                 container('docker') {
-                    load './jenkins/03_build.groovy'
+                    sh """
+                        echo "Building WordPress image..."
+                        docker build --platform linux/x86_64 -t ${IMAGE_NAME} .
+                    """
                 }
             }
         }
@@ -87,7 +87,7 @@ spec:
         stage('Health Check') {
             steps {
                 container('docker') {
-                    load './jenkins/06_health_check.groovy'
+                    load './jenkins/05_health_check.groovy'
                 }
             }
         }
@@ -95,7 +95,7 @@ spec:
         stage('Cleanup') {
             steps {
                 container('docker') {
-                    load './jenkins/05_cleanup.groovy'
+                    load './jenkins/06_cleanup.groovy'
                 }
             }
         }
