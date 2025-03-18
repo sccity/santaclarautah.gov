@@ -18,31 +18,15 @@ spec:
       securityContext:
         privileged: true
       command: ["dockerd-entrypoint.sh"]
-      args: ["--host=tcp://0.0.0.0:2375", "--tls=false"]
-      env:
-        - name: DOCKER_HOST
-          value: "tcp://localhost:2375"
-        - name: DOCKER_TLS_VERIFY
-          value: "0"
-        - name: DOCKER_TLS
-          value: "0"
+      args: ["--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock"]
       volumeMounts:
         - name: docker-lib
           mountPath: /var/lib/docker
-        - name: workspace-volume
-          mountPath: /home/jenkins/agent
-
-    - name: kubectl
-      image: bitnami/kubectl:latest
-      command: ['cat']
-      tty: true
-      volumeMounts:
-        - name: workspace-volume
-          mountPath: /home/jenkins/agent
 
   volumes:
     - name: workspace-volume
       emptyDir: {}
+
     - name: docker-lib
       emptyDir: {}
 
@@ -57,23 +41,10 @@ spec:
         }
     }
 
-    environment {
-        DOCKER_REGISTRY = 'sccity'
-        APP_NAME = 'santaclarautah'
-        NEW_VERSION = '0.0.0' // Default version, will be updated in Prepare Version stage
-    }
 
-    options {
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        disableConcurrentBuilds()
-        timestamps()
-    }
 
-    // Add specific triggers for GitHub webhook
-    triggers {
-        githubPush()
-        pollSCM('H/5 * * * *')  // Fallback polling every 5 minutes
-    }
+
+
 
     stages {
         stage('Check Branch') {
@@ -127,10 +98,6 @@ spec:
                                 timeout 30s sh -c 'until docker info; do sleep 1; done'
                             """
                             
-                            // Login to Docker Hub first
-                            sh """
-                                echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                            """
                             
                             // Build Docker image
                             sh """
