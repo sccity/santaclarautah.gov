@@ -73,7 +73,7 @@ push_image() {
 update_deployment() {
     local commit_hash=$1
     print_message "$BLUE" "Updating deployment to use new image..."
-    kubectl set image deployment/santaclarautah-dev santaclarautah=sccity/santaclarautah:$commit_hash-dev -n webprod
+    kubectl set image deployment/santaclarautah-dev wordpress=sccity/santaclarautah:$commit_hash-dev -n webprod
 }
 
 # Function to monitor rollout
