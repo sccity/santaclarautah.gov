@@ -4,13 +4,13 @@ withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
     branch=$(cat branch.txt)
 
     namespace="webprod"
-    container="influence360"
-    image="sccity/influence360"
+    container="santaclarautah"
+    image="sccity/santaclarautah"
 
     if [ "$branch" = "dev" ]; then
-        DEPLOYMENT="influence360-uat"
+        DEPLOYMENT="santaclarautah-dev"
     elif [ "$branch" = "prod" ]; then
-        DEPLOYMENT="influence360"
+        DEPLOYMENT="santaclarautah"
     else
         echo "Error: Unknown Branch '$branch'. Skipping Deployment."
         exit 1
