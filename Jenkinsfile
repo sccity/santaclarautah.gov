@@ -13,12 +13,18 @@ pipeline {
         githubPush()
     }
 
-    // Only run pipeline on dev branch
-    when {
-        branch 'dev'
-    }
-
     stages {
+        stage('Check Branch') {
+            steps {
+                script {
+                    if (env.BRANCH_NAME != 'dev') {
+                        currentBuild.result = 'ABORTED'
+                        error('Stopping early: this build should only run on dev branch')
+                    }
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
