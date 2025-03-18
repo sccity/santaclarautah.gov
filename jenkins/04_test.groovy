@@ -1,4 +1,7 @@
 sh '''
+    # Load environment variables from initialize stage
+    source env.properties
+    
     # Test WordPress installation
     echo "Testing WordPress installation..."
     
