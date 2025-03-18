@@ -5,8 +5,6 @@ def initialize = load 'jenkins/01_initialize.groovy'
 def configure = load 'jenkins/02_configure.groovy'
 def prepare = load 'jenkins/03_prepare.groovy'
 def test = load 'jenkins/04_test.groovy'
-def failure = load 'jenkins/failure.groovy'
-def fixed = load 'jenkins/fixed.groovy'
 def image = load 'jenkins/image.groovy'
 def tag = load 'jenkins/tag.groovy'
 
@@ -196,14 +194,36 @@ spec:
 
     post {
         failure {
-            script {
-                failure(env.BUILD_URL)
-            }
+            emailext (
+                subject: "❌ WordPress Build Failed",
+                body: """
+                    Build Status: Failed
+                    Build URL: ${env.BUILD_URL}
+                    
+                    Changes in this build:
+                    ${currentBuild.changeSets}
+                    
+                    Console Output:
+                    ${currentBuild.getLog()}
+                """,
+                recipientProviders: [[$class: 'DevelopersRecipientProvider']],
+                attachmentsPattern: '**/build.log',
+                to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov'
+            )
         }
         fixed {
-            script {
-                fixed(env.BUILD_URL)
-            }
+            emailext (
+                subject: "✅ WordPress Build Fixed",
+                body: """
+                    Build Status: Fixed
+                    Build URL: ${env.BUILD_URL}
+                    
+                    Changes in this build:
+                    ${currentBuild.changeSets}
+                """,
+                recipientProviders: [[$class: 'DevelopersRecipientProvider']],
+                to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov'
+            )
         }
     }
 } 
