@@ -77,10 +77,11 @@ spec:
         timestamps()
     }
 
-    // Add specific triggers for GitHub webhook
+    // GitHub webhook trigger configuration
     triggers {
         githubPush()
-        pollSCM('H/5 * * * *')  // Fallback polling every 5 minutes
+        // Fallback polling every 5 minutes if webhook fails
+        pollSCM('H/5 * * * *')
     }
 
     stages {
