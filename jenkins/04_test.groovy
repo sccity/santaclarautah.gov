@@ -25,7 +25,7 @@ sh '''
     # Create wp-config.php with database settings
     docker exec $MYSQL_CONTAINER mysql -uwordpress -pwordpress -e "CREATE DATABASE IF NOT EXISTS wordpress;"
     
-    # Create a temporary wp-config.php file
+    # Create a temporary wp-config.php file with complete WordPress configuration
     cat > wp-config.php << 'EOL'
 <?php
 define('DB_NAME', 'wordpress');
@@ -35,11 +35,20 @@ define('DB_HOST', 'mysql');
 define('DB_CHARSET', 'utf8');
 define('DB_COLLATE', '');
 define('WP_DEBUG', true);
+
+$table_prefix = 'wp_';
+
+if (!defined('ABSPATH')) {
+    define('ABSPATH', __DIR__ . '/');
+}
+
+require_once ABSPATH . 'wp-settings.php';
 EOL
     
     # Set permissions on wp-config.php before copying
     chmod 644 wp-config.php
     
+    # Create the container with the wp-config.php file mounted
     CONTAINER_ID=$(docker create --rm \
         --network wordpress_test_network \
         -p 8080:80 \
@@ -47,6 +56,7 @@ EOL
         -e WORDPRESS_DB_NAME=wordpress \
         -e WORDPRESS_DB_USER=wordpress \
         -e WORDPRESS_DB_PASSWORD=wordpress \
+        -v $(pwd)/wp-config.php:/var/www/html/wp-config.php \
         ${IMAGE_NAME})
     
     if [ -z "$CONTAINER_ID" ]; then
@@ -63,6 +73,8 @@ EOL
         echo "Error: Container failed to start. Status: $CONTAINER_STATUS"
         echo "Container logs:"
         docker logs $CONTAINER_ID
+        echo "Container details:"
+        docker inspect $CONTAINER_ID
         docker rm -f $CONTAINER_ID
         exit 1
     fi
@@ -72,21 +84,31 @@ EOL
     sleep 5
     
     # Check container health
+    echo "Checking container health..."
     if ! docker exec $CONTAINER_ID ps aux | grep -q apache2; then
         echo "Error: Apache is not running in container"
         echo "Container logs:"
         docker logs $CONTAINER_ID
+        echo "Container processes:"
+        docker exec $CONTAINER_ID ps aux
         docker rm -f $CONTAINER_ID
         exit 1
     fi
     
-    # Copy wp-config.php into the container
-    echo "Copying wp-config.php into container..."
-    docker cp wp-config.php $CONTAINER_ID:/var/www/html/wp-config.php
-    
-    # Verify wp-config.php was copied correctly
+    # Verify wp-config.php exists and has correct permissions
+    echo "Verifying wp-config.php..."
     if ! docker exec $CONTAINER_ID test -f /var/www/html/wp-config.php; then
-        echo "Error: Failed to copy wp-config.php into container"
+        echo "Error: wp-config.php is missing in container"
+        echo "Container files:"
+        docker exec $CONTAINER_ID ls -la /var/www/html/
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
+    
+    # Check wp-config.php permissions
+    PERMS=$(docker exec $CONTAINER_ID stat -c "%a" /var/www/html/wp-config.php)
+    if [ "$PERMS" != "644" ]; then
+        echo "Error: wp-config.php has incorrect permissions: $PERMS"
         docker rm -f $CONTAINER_ID
         exit 1
     fi
@@ -104,6 +126,10 @@ EOL
             docker logs $CONTAINER_ID
             echo "WordPress container status:"
             docker inspect $CONTAINER_ID
+            echo "WordPress container processes:"
+            docker exec $CONTAINER_ID ps aux
+            echo "WordPress container files:"
+            docker exec $CONTAINER_ID ls -la /var/www/html/
             echo "MySQL container logs:"
             docker logs $MYSQL_CONTAINER
             docker rm -f $CONTAINER_ID
@@ -113,6 +139,8 @@ EOL
             echo "Still waiting for Apache to start... ($COUNTER seconds)"
             echo "Current container logs:"
             docker logs --tail 20 $CONTAINER_ID
+            echo "Current container processes:"
+            docker exec $CONTAINER_ID ps aux
         fi
     done
     
@@ -122,6 +150,10 @@ EOL
         echo "Error: Cannot connect to MySQL database"
         echo "MySQL container logs:"
         docker logs $MYSQL_CONTAINER
+        echo "WordPress container logs:"
+        docker logs $CONTAINER_ID
+        echo "WordPress container network:"
+        docker network inspect $NETWORK_NAME
         docker rm -f $CONTAINER_ID
         exit 1
     fi
