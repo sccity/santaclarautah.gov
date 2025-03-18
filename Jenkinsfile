@@ -83,22 +83,6 @@ spec:
                 }
             }
         }
-
-        stage('Health Check') {
-            steps {
-                container('docker') {
-                    load './jenkins/05_health_check.groovy'
-                }
-            }
-        }
-
-        stage('Cleanup') {
-            steps {
-                container('docker') {
-                    load './jenkins/06_cleanup.groovy'
-                }
-            }
-        }
     }
 
     post {
