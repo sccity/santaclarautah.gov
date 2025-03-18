@@ -265,7 +265,7 @@ spec:
                         <p><b>Console Output (last 100 lines):</b></p>
                         <pre>${currentBuild.rawBuild.getLog(100).join('\n')}</pre>
                     """,
-                    to: 'devops@santaclarautah.gov',
+                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
                     replyTo: 'no-reply@santaclarautah.gov',
                     mimeType: 'text/html',
                     attachLog: true
@@ -286,7 +286,7 @@ spec:
                             }.join('\n')
                         }.join('\n')}</pre>
                     """,
-                    to: 'devops@santaclarautah.gov',
+                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
                     replyTo: 'no-reply@santaclarautah.gov',
                     mimeType: 'text/html'
                 )
@@ -306,7 +306,7 @@ spec:
                             }.join('\n')
                         }.join('\n')}</pre>
                     """,
-                    to: 'devops@santaclarautah.gov',
+                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
                     replyTo: 'no-reply@santaclarautah.gov',
                     mimeType: 'text/html'
                 )
