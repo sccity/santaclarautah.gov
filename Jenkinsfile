@@ -58,6 +58,7 @@ spec:
         APP_NAME = 'santaclarautah'
         NEW_VERSION = '0.0.0' // Default version, will be updated in Prepare Version stage
         DOCKER_HOST = 'tcp://localhost:2375'
+        DOCKER_TLS_VERIFY = '0'
     }
 
     options {
