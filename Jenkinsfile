@@ -1,3 +1,15 @@
+#!/usr/bin/env groovy
+
+// Load stage files
+def initialize = load 'jenkins/01_initialize.groovy'
+def configure = load 'jenkins/02_configure.groovy'
+def prepare = load 'jenkins/03_prepare.groovy'
+def test = load 'jenkins/04_test.groovy'
+def failure = load 'jenkins/failure.groovy'
+def fixed = load 'jenkins/fixed.groovy'
+def image = load 'jenkins/image.groovy'
+def tag = load 'jenkins/tag.groovy'
+
 pipeline {
     agent {
         kubernetes {
@@ -72,110 +84,54 @@ spec:
     }
 
     stages {
-        stage('Check Branch') {
+        stage('Initialize') {
             steps {
-                container('jnlp') {
-                    script {
-                        sh """
-                            git checkout dev
-                            git pull origin dev
-                        """
-                    }
+                script {
+                    initialize()
                 }
             }
         }
 
-        stage('Prepare Version') {
+        stage('Configure') {
             steps {
-                container('jnlp') {
-                    script {
-                        // Get current version and increment patch
-                        def currentVersion = sh(
-                            script: "grep -o 'sccity/santaclarautah:[0-9.]*' k8s-manifests/wordpress-deployment.yaml | cut -d: -f2",
-                            returnStdout: true
-                        ).trim()
-
-                        // Parse version components
-                        def parts = currentVersion.tokenize('.')
-                        def major = parts[0]
-                        def minor = parts[1]
-                        def patch = parts.size() > 2 ? parts[2].toInteger() : 0
-
-                        // Increment patch version
-                        env.NEW_VERSION = "${major}.${minor}.${patch + 1}"
-                        
-                        // Update deployment file
-                        sh """
-                            sed -i "s|sccity/santaclarautah:${currentVersion}|sccity/santaclarautah:${env.NEW_VERSION}|" k8s-manifests/wordpress-deployment.yaml
-                        """
-                    }
+                script {
+                    configure()
                 }
             }
         }
 
-        stage('Build and Test') {
+        stage('Prepare') {
             steps {
-                container('docker') {
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        script {
-                            // Login to Docker Hub first
-                            sh """
-                                echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                            """
-                            
-                            // Build Docker image
-                            sh """
-                                docker build --platform linux/x86_64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
-                            """
-
-                            // Basic test to verify WordPress files exist
-                            sh """
-                                docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -f /var/www/html/wp-config.php
-                                docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -d /var/www/html/wp-content/plugins
-                                docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -f /var/www/html/wp-content/plugins/elementor/elementor.php
-                            """
-                        }
-                    }
+                script {
+                    prepare()
                 }
             }
         }
 
-        stage('Plugin Verification') {
+        stage('Test') {
             steps {
-                container('docker') {
-                    script {
-                        // Get list of expected plugins from plugins directory
-                        def expectedPlugins = sh(
-                            script: "ls -1 plugins/*.zip | sed 's/plugins\\///' | sed 's/\\.zip//'",
-                            returnStdout: true
-                        ).trim().split('\n')
+                script {
+                    test()
+                }
+            }
+        }
 
-                        // Run container and verify plugins are installed and activated
-                        sh """
-                            docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} bash -c '
-                                cd /var/www/html/wp-content/plugins && 
-                                for plugin in *; do
-                                    if [ -d "\$plugin" ]; then
-                                        echo "Verifying plugin: \$plugin"
-                                        test -f "\$plugin/\$plugin.php" || test -f "\$plugin/index.php"
-                                    fi
-                                done
-                            '
-                        """
-                    }
+        stage('Build Image') {
+            steps {
+                script {
+                    def imageTag = tag()
+                    image('santaclarautah/wordpress', imageTag)
                 }
             }
         }
 
         stage('Push Image') {
             steps {
-                container('docker') {
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh """
-                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                            docker push ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION}
-                        """
-                    }
+                withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+                        docker push santaclarautah/wordpress:latest
+                    '''
                 }
             }
         }
@@ -239,64 +195,14 @@ spec:
     }
 
     post {
-        success {
-            script {
-                container('docker') {
-                    sh """
-                        docker rmi ${env.DOCKER_REGISTRY}/${env.APP_NAME}:${env.NEW_VERSION} || true
-                    """
-                }
-            }
-        }
         failure {
             script {
-                container('docker') {
-                    sh """
-                        docker rmi ${env.DOCKER_REGISTRY}/${env.APP_NAME}:${env.NEW_VERSION} || true
-                    """
-                }
-                
-                emailext (
-                    subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                    body: """
-                        <p>The build failed for ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
-                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
-                        <p><b>Console Output (last 100 lines):</b></p>
-                        <pre>${currentBuild.rawBuild.getLog(100).join('\n')}</pre>
-                    """,
-                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
-                    replyTo: 'no-reply@santaclarautah.gov',
-                    mimeType: 'text/html',
-                    attachLog: true
-                )
-            }
-        }
-        unstable {
-            script {
-                emailext (
-                    subject: "⚠️ Build Unstable: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                    body: """
-                        <p>The build is unstable for ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
-                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
-                    """,
-                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
-                    replyTo: 'no-reply@santaclarautah.gov',
-                    mimeType: 'text/html'
-                )
+                failure(env.BUILD_URL)
             }
         }
         fixed {
             script {
-                emailext (
-                    subject: "✅ Build Fixed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                    body: """
-                        <p>The build has been fixed in ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
-                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
-                    """,
-                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
-                    replyTo: 'no-reply@santaclarautah.gov',
-                    mimeType: 'text/html'
-                )
+                fixed(env.BUILD_URL)
             }
         }
     }
