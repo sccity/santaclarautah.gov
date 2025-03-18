@@ -85,8 +85,10 @@ spec:
         }
 
         stage('Cleanup') {
-            container('docker') {
-                load './jenkins/05_cleanup.groovy'
+            steps {
+                container('docker') {
+                    load './jenkins/05_cleanup.groovy'
+                }
             }
         }
     }
