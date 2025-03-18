@@ -4,8 +4,7 @@ pipeline {
     environment {
         DOCKER_REGISTRY = 'sccity'
         APP_NAME = 'santaclarautah'
-        DOCKER_CREDS = credentials('docker-credentials')
-        KUBE_CONFIG = credentials('kube-config')
+        NEW_VERSION = '0.0.0' // Default version, will be updated in Prepare Version stage
     }
 
     triggers {
@@ -103,7 +102,6 @@ pipeline {
         stage('Push Image') {
             steps {
                 script {
-                    // Login to Docker registry
                     withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh """
                             echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
@@ -116,57 +114,50 @@ pipeline {
 
         stage('Deploy to Dev') {
             steps {
-                script {
-                    // Apply Kubernetes manifests
-                    withKubeConfig([credentialsId: 'kube-config']) {
-                        sh """
-                            kubectl apply -f k8s-manifests/apache-config.yaml
-                            kubectl apply -f k8s-manifests/wordpress-config.yaml
-                            kubectl apply -f k8s-manifests/wordpress-deployment.yaml
-                            kubectl rollout status deployment santaclarautah-dev -n webprod
-                        """
-                    }
+                withCredentials([file(credentialsId: 'kube-config', variable: 'KUBECONFIG')]) {
+                    sh """
+                        kubectl apply -f k8s-manifests/apache-config.yaml
+                        kubectl apply -f k8s-manifests/wordpress-config.yaml
+                        kubectl apply -f k8s-manifests/wordpress-deployment.yaml
+                        kubectl rollout status deployment santaclarautah-dev -n webprod
+                    """
                 }
             }
         }
 
         stage('Health Check') {
             steps {
-                script {
-                    // Wait for deployment to be ready and perform health checks
-                    withKubeConfig([credentialsId: 'kube-config']) {
-                        sh """
-                            # Wait for pods to be ready
-                            sleep 30
-                            
-                            # Get pod status
-                            kubectl get pods -n webprod -l app=santaclarautah-dev
-                            
-                            # Check WordPress installation
-                            POD=\$(kubectl get pods -n webprod -l app=santaclarautah-dev -o name | head -1)
-                            kubectl exec -n webprod \$POD -- curl -s -f http://localhost:8080/
-                            
-                            # Verify Apache configuration
-                            kubectl exec -n webprod \$POD -- apache2ctl -t
-                            
-                            # Check WordPress permissions
-                            kubectl exec -n webprod \$POD -- find /var/www/html -type f -exec stat -c "%a %n" {} \\;
-                        """
-                    }
+                withCredentials([file(credentialsId: 'kube-config', variable: 'KUBECONFIG')]) {
+                    sh """
+                        # Wait for pods to be ready
+                        sleep 30
+                        
+                        # Get pod status
+                        kubectl get pods -n webprod -l app=santaclarautah-dev
+                        
+                        # Check WordPress installation
+                        POD=\$(kubectl get pods -n webprod -l app=santaclarautah-dev -o name | head -1)
+                        kubectl exec -n webprod \$POD -- curl -s -f http://localhost:8080/
+                        
+                        # Verify Apache configuration
+                        kubectl exec -n webprod \$POD -- apache2ctl -t
+                        
+                        # Check WordPress permissions
+                        kubectl exec -n webprod \$POD -- find /var/www/html -type f -exec stat -c "%a %n" {} \\;
+                    """
                 }
             }
         }
 
         stage('Commit Version Update') {
             steps {
-                script {
-                    // Commit the version update back to the dev branch
+                withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
                     sh """
                         git config --global user.email "jenkins@santaclarautah.gov"
                         git config --global user.name "Jenkins CI"
                         git add k8s-manifests/wordpress-deployment.yaml
                         git commit -m "chore: update version to ${env.NEW_VERSION} [skip ci]"
-                        git push origin dev
+                        git push https://\${GIT_USER}:\${GIT_PASS}@github.com/sccity/santaclarautah.gov.git dev
                     """
                 }
             }
@@ -175,16 +166,22 @@ pipeline {
 
     post {
         success {
-            echo "Deployment to dev environment successful! New version: ${env.NEW_VERSION}"
-            // Could add Slack/email notifications here
+            script {
+                echo "Deployment to dev environment successful! New version: ${env.NEW_VERSION}"
+                // Clean up Docker images
+                sh """
+                    docker rmi ${env.DOCKER_REGISTRY}/${env.APP_NAME}:${env.NEW_VERSION} || true
+                """
+            }
         }
         failure {
-            echo "Deployment to dev environment failed"
-            // Could add Slack/email notifications here
-        }
-        always {
-            // Clean up Docker images
-            sh "docker rmi ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} || true"
+            script {
+                echo "Deployment to dev environment failed"
+                // Clean up Docker images if they exist
+                sh """
+                    docker rmi ${env.DOCKER_REGISTRY}/${env.APP_NAME}:${env.NEW_VERSION} || true
+                """
+            }
         }
     }
 } 
