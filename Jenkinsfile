@@ -18,11 +18,13 @@ spec:
       securityContext:
         privileged: true
       command: ["dockerd-entrypoint.sh"]
-      args: ["--host=tcp://0.0.0.0:2375"]
+      args: ["--host=tcp://0.0.0.0:2375", "--tls=false"]
       env:
         - name: DOCKER_HOST
           value: "tcp://localhost:2375"
         - name: DOCKER_TLS_VERIFY
+          value: "0"
+        - name: DOCKER_TLS
           value: "0"
       volumeMounts:
         - name: docker-lib
