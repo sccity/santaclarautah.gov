@@ -58,29 +58,15 @@ spec:
     }
 
     options {
-        // Add build discarder to keep build history clean
-        buildDiscarder(logRotator(numToKeep: 10))
-        // Don't run concurrent builds for the same branch
+        buildDiscarder(logRotator(numToKeepStr: '10'))
         disableConcurrentBuilds()
-        // Add timestamps to the build log
         timestamps()
     }
 
     // Add specific triggers for GitHub webhook
     triggers {
         githubPush()
-        GenericTrigger(
-            genericVariables: [
-                [key: 'ref', value: '$.ref']
-            ],
-            causeString: 'Triggered by GitHub push',
-            token: 'santaclarautah-dev',
-            printContributedVariables: true,
-            printPostContent: true,
-            silentResponse: false,
-            regexpFilterText: '$ref',
-            regexpFilterExpression: 'refs/heads/dev'
-        )
+        pollSCM('H/5 * * * *')  // Fallback polling every 5 minutes
     }
 
     stages {
