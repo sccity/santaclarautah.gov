@@ -57,6 +57,13 @@ spec:
         DOCKER_HOST = 'tcp://localhost:2375'
     }
 
+    options {
+        // Add build discarder to keep build history clean
+        buildDiscarder(logRotator(numToKeep: 10))
+        // Don't run concurrent builds for the same branch
+        disableConcurrentBuilds()
+    }
+
     stages {
         stage('Check Branch') {
             steps {
@@ -241,6 +248,66 @@ spec:
                         docker rmi ${env.DOCKER_REGISTRY}/${env.APP_NAME}:${env.NEW_VERSION} || true
                     """
                 }
+                
+                emailext (
+                    subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    body: """
+                        <p>The build failed for ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
+                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
+                        <p><b>Changes in this build:</b></p>
+                        <pre>${currentBuild.changeSets.collect { cs -> 
+                            cs.entries.collect { entry ->
+                                "- ${entry.msg} (${entry.author})"
+                            }.join('\n')
+                        }.join('\n')}</pre>
+                        <p><b>Console Output (last 100 lines):</b></p>
+                        <pre>${currentBuild.rawBuild.getLog(100).join('\n')}</pre>
+                    """,
+                    to: 'devops@santaclarautah.gov',
+                    replyTo: 'no-reply@santaclarautah.gov',
+                    mimeType: 'text/html',
+                    attachLog: true
+                )
+            }
+        }
+        unstable {
+            script {
+                emailext (
+                    subject: "⚠️ Build Unstable: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    body: """
+                        <p>The build is unstable for ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
+                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
+                        <p><b>Changes in this build:</b></p>
+                        <pre>${currentBuild.changeSets.collect { cs -> 
+                            cs.entries.collect { entry ->
+                                "- ${entry.msg} (${entry.author})"
+                            }.join('\n')
+                        }.join('\n')}</pre>
+                    """,
+                    to: 'devops@santaclarautah.gov',
+                    replyTo: 'no-reply@santaclarautah.gov',
+                    mimeType: 'text/html'
+                )
+            }
+        }
+        fixed {
+            script {
+                emailext (
+                    subject: "✅ Build Fixed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    body: """
+                        <p>The build has been fixed in ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
+                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
+                        <p><b>Changes that fixed the build:</b></p>
+                        <pre>${currentBuild.changeSets.collect { cs -> 
+                            cs.entries.collect { entry ->
+                                "- ${entry.msg} (${entry.author})"
+                            }.join('\n')
+                        }.join('\n')}</pre>
+                    """,
+                    to: 'devops@santaclarautah.gov',
+                    replyTo: 'no-reply@santaclarautah.gov',
+                    mimeType: 'text/html'
+                )
             }
         }
     }
