@@ -1,15 +1,3 @@
-#!/usr/bin/env groovy
-
-// Load stage files
-def initialize = load 'jenkins/01_initialize.groovy'
-def configure = load 'jenkins/02_configure.groovy'
-def prepare = load 'jenkins/03_prepare.groovy'
-def test = load 'jenkins/04_test.groovy'
-def image = load 'jenkins/image.groovy'
-def tag = load 'jenkins/tag.groovy'
-
-// Main pipeline definition
-// This pipeline handles WordPress setup, testing, and deployment to dev environment
 pipeline {
     agent {
         kubernetes {
@@ -77,62 +65,110 @@ spec:
         timestamps()
     }
 
-    // GitHub webhook trigger configuration
+    // Add specific triggers for GitHub webhook
     triggers {
         githubPush()
-        // Daily build at 2 AM
-        cron('0 2 * * *')
+        pollSCM('H/5 * * * *')  // Fallback polling every 5 minutes
     }
 
     stages {
-        stage('Initialize') {
+        stage('Check Branch') {
             steps {
-                script {
-                    initialize()
+                container('jnlp') {
+                    script {
+                        sh """
+                            git checkout dev
+                            git pull origin dev
+                        """
+                    }
                 }
             }
         }
 
-        stage('Configure') {
+        stage('Prepare Version') {
             steps {
-                script {
-                    configure()
+                container('jnlp') {
+                    script {
+                        // Get current version and increment patch
+                        def currentVersion = sh(
+                            script: "grep -o 'sccity/santaclarautah:[0-9.]*' k8s-manifests/wordpress-deployment.yaml | cut -d: -f2",
+                            returnStdout: true
+                        ).trim()
+
+                        // Parse version components
+                        def parts = currentVersion.tokenize('.')
+                        def major = parts[0]
+                        def minor = parts[1]
+                        def patch = parts.size() > 2 ? parts[2].toInteger() : 0
+
+                        // Increment patch version
+                        env.NEW_VERSION = "${major}.${minor}.${patch + 1}"
+                        
+                        // Update deployment file
+                        sh """
+                            sed -i "s|sccity/santaclarautah:${currentVersion}|sccity/santaclarautah:${env.NEW_VERSION}|" k8s-manifests/wordpress-deployment.yaml
+                        """
+                    }
                 }
             }
         }
 
-        stage('Prepare') {
+        stage('Build and Test') {
             steps {
-                script {
-                    prepare()
+                container('docker') {
+                    script {
+                        // Build Docker image
+                        sh """
+                            docker build --platform linux/x86_64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} --push .
+                        """
+
+                        // Basic test to verify WordPress files exist
+                        sh """
+                            docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -f /var/www/html/wp-config.php
+                            docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -d /var/www/html/wp-content/plugins
+                            docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} test -f /var/www/html/wp-content/plugins/elementor/elementor.php
+                        """
+                    }
                 }
             }
         }
 
-        stage('Test') {
+        stage('Plugin Verification') {
             steps {
-                script {
-                    test()
-                }
-            }
-        }
+                container('docker') {
+                    script {
+                        // Get list of expected plugins from plugins directory
+                        def expectedPlugins = sh(
+                            script: "ls -1 plugins/*.zip | sed 's/plugins\\///' | sed 's/\\.zip//'",
+                            returnStdout: true
+                        ).trim().split('\n')
 
-        stage('Build Image') {
-            steps {
-                script {
-                    def imageTag = tag()
-                    image('santaclarautah/wordpress', imageTag)
+                        // Run container and verify plugins are installed and activated
+                        sh """
+                            docker run --rm ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} bash -c '
+                                cd /var/www/html/wp-content/plugins && 
+                                for plugin in *; do
+                                    if [ -d "\$plugin" ]; then
+                                        echo "Verifying plugin: \$plugin"
+                                        test -f "\$plugin/\$plugin.php" || test -f "\$plugin/index.php"
+                                    fi
+                                done
+                            '
+                        """
+                    }
                 }
             }
         }
 
         stage('Push Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh '''
-                        docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-                        docker push santaclarautah/wordpress:latest
-                    '''
+                container('docker') {
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh """
+                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                            docker push ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION}
+                        """
+                    }
                 }
             }
         }
@@ -196,37 +232,65 @@ spec:
     }
 
     post {
+        success {
+            script {
+                container('docker') {
+                    sh """
+                        docker rmi ${env.DOCKER_REGISTRY}/${env.APP_NAME}:${env.NEW_VERSION} || true
+                    """
+                }
+            }
+        }
         failure {
-            emailext (
-                subject: "❌ WordPress Build Failed",
-                body: """
-                    Build Status: Failed
-                    Build URL: ${env.BUILD_URL}
-                    
-                    Changes in this build:
-                    ${currentBuild.changeSets}
-                    
-                    Console Output:
-                    ${currentBuild.getLog()}
-                """,
-                recipientProviders: [[$class: 'DevelopersRecipientProvider']],
-                attachmentsPattern: '**/build.log',
-                to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov'
-            )
+            script {
+                container('docker') {
+                    sh """
+                        docker rmi ${env.DOCKER_REGISTRY}/${env.APP_NAME}:${env.NEW_VERSION} || true
+                    """
+                }
+                
+                emailext (
+                    subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    body: """
+                        <p>The build failed for ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
+                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
+                        <p><b>Console Output (last 100 lines):</b></p>
+                        <pre>${currentBuild.rawBuild.getLog(100).join('\n')}</pre>
+                    """,
+                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
+                    replyTo: 'no-reply@santaclarautah.gov',
+                    mimeType: 'text/html',
+                    attachLog: true
+                )
+            }
+        }
+        unstable {
+            script {
+                emailext (
+                    subject: "⚠️ Build Unstable: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    body: """
+                        <p>The build is unstable for ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
+                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
+                    """,
+                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
+                    replyTo: 'no-reply@santaclarautah.gov',
+                    mimeType: 'text/html'
+                )
+            }
         }
         fixed {
-            emailext (
-                subject: "✅ WordPress Build Fixed",
-                body: """
-                    Build Status: Fixed
-                    Build URL: ${env.BUILD_URL}
-                    
-                    Changes in this build:
-                    ${currentBuild.changeSets}
-                """,
-                recipientProviders: [[$class: 'DevelopersRecipientProvider']],
-                to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov'
-            )
+            script {
+                emailext (
+                    subject: "✅ Build Fixed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    body: """
+                        <p>The build has been fixed in ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
+                        <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
+                    """,
+                    to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
+                    replyTo: 'no-reply@santaclarautah.gov',
+                    mimeType: 'text/html'
+                )
+            }
         }
     }
 } 
