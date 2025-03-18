@@ -107,18 +107,80 @@ EOL
         exit 1
     fi
     
-    # Test plugin installation
+    # Test plugin installation and activation
     echo "Testing plugin installation..."
-    if ! docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar plugin list --path=/var/www/html --format=csv; then
+    PLUGINS=$(docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar plugin list --path=/var/www/html --format=csv)
+    if [ $? -ne 0 ]; then
         echo "Error: Plugin list command failed"
         docker rm -f $CONTAINER_ID
         exit 1
     fi
     
+    # Verify required plugins are installed
+    REQUIRED_PLUGINS=(
+        "elementor"
+        "elementor-pro"
+        "formidable"
+        "wp-mail-smtp"
+        "wp-optimize"
+        "wp-fastest-cache"
+        "updraftplus"
+        "cloudflare"
+        "query-monitor"
+    )
+    
+    for plugin in "${REQUIRED_PLUGINS[@]}"; do
+        if ! echo "$PLUGINS" | grep -q "$plugin"; then
+            echo "Error: Required plugin '$plugin' is not installed"
+            docker rm -f $CONTAINER_ID
+            exit 1
+        fi
+    done
+    
     # Test theme installation
     echo "Testing theme installation..."
-    if ! docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar theme list --path=/var/www/html --format=csv; then
+    THEMES=$(docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar theme list --path=/var/www/html --format=csv)
+    if [ $? -ne 0 ]; then
         echo "Error: Theme list command failed"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
+    
+    # Verify required themes are installed
+    REQUIRED_THEMES=("twentytwentyfour")
+    for theme in "${REQUIRED_THEMES[@]}"; do
+        if ! echo "$THEMES" | grep -q "$theme"; then
+            echo "Error: Required theme '$theme' is not installed"
+            docker rm -f $CONTAINER_ID
+            exit 1
+        fi
+    done
+    
+    # Test file permissions
+    echo "Testing file permissions..."
+    PERMISSIONS=$(docker exec $CONTAINER_ID ls -la /var/www/html/wp-content)
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to check file permissions"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
+    
+    # Verify uploads directory exists and is writable
+    if ! docker exec $CONTAINER_ID test -w /var/www/html/wp-content/uploads; then
+        echo "Error: Uploads directory is not writable"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
+    
+    # Test wp-config.php settings
+    echo "Testing wp-config.php configuration..."
+    if ! docker exec $CONTAINER_ID php -r "
+        require '/var/www/html/wp-config.php';
+        if (!defined('DB_NAME') || !defined('DB_USER') || !defined('DB_HOST')) {
+            exit(1);
+        }
+    "; then
+        echo "Error: wp-config.php is missing required constants"
         docker rm -f $CONTAINER_ID
         exit 1
     fi
@@ -134,6 +196,25 @@ EOL
         docker rm -f $CONTAINER_ID
         exit 1
     fi
+    
+    # Test for exposed sensitive files
+    echo "Testing for exposed sensitive files..."
+    SENSITIVE_FILES=(
+        "/var/www/html/wp-config.php"
+        "/var/www/html/.htaccess"
+        "/var/www/html/wp-content/debug.log"
+    )
+    
+    for file in "${SENSITIVE_FILES[@]}"; do
+        if docker exec $CONTAINER_ID test -f "$file"; then
+            PERMS=$(docker exec $CONTAINER_ID stat -c "%a" "$file")
+            if [ "$PERMS" != "644" ] && [ "$PERMS" != "600" ]; then
+                echo "Error: Sensitive file '$file' has incorrect permissions: $PERMS"
+                docker rm -f $CONTAINER_ID
+                exit 1
+            fi
+        fi
+    done
     
     echo "WordPress installation is accessible and ready for setup (HTTP 302)"
     
