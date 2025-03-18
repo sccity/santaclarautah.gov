@@ -37,6 +37,9 @@ define('DB_COLLATE', '');
 define('WP_DEBUG', true);
 EOL
     
+    # Set permissions on wp-config.php before copying
+    chmod 644 wp-config.php
+    
     CONTAINER_ID=$(docker create --rm \
         --network wordpress_test_network \
         -p 8080:80 \
@@ -59,8 +62,6 @@ EOL
     
     # Copy wp-config.php into the container
     docker cp wp-config.php $CONTAINER_ID:/var/www/html/wp-config.php
-    docker exec $CONTAINER_ID chown www-data:www-data /var/www/html/wp-config.php
-    docker exec $CONTAINER_ID chmod 644 /var/www/html/wp-config.php
     
     # Wait for Apache to start with timeout
     echo "Waiting for Apache to start..."
