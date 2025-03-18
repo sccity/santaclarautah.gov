@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: santaclarautah-wordpress-config
+  namespace: webprod
+data:
+  WORDPRESS_CONFIG_EXTRA: |
+    define('FS_METHOD', 'direct');
+    define('DB_ENGINE', 'InnoDB');
+    define('WP_HOME', 'https://dev.santaclarautah.gov');
+    define('WP_SITEURL', 'https://dev.santaclarautah.gov');
+    
+    // Let Cloudflare handle SSL
+    define('FORCE_SSL_ADMIN', false);
+    define('FORCE_SSL_LOGIN', false);
+
+    // Handle host header and HTTPS detection
+    if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+        $_SERVER['HTTPS'] = 'on';
+        $_SERVER['SERVER_PORT'] = '443';
+    }
+    if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+        $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_X_FORWARDED_HOST'];
+        $_SERVER['SERVER_NAME'] = $_SERVER['HTTP_X_FORWARDED_HOST'];
+    }
+
+    // Prevent WordPress from modifying the site URL
+    define('WP_SITEURL_ENFORCED', true);
+    define('WP_HOME_ENFORCED', true);
+    
+    // Disable automatic redirects
+    define('RELOCATE', false);
+
+    // Trust X-Forwarded-Proto header from Cloudflare
+    if (isset($_SERVER['HTTP_CF_VISITOR'])) {
+        $cf_visitor = json_decode($_SERVER['HTTP_CF_VISITOR']);
+        if (isset($cf_visitor->scheme) && $cf_visitor->scheme == 'https') {
+            $_SERVER['HTTPS'] = 'on';
+        }
+    }
+  php.ini: |
+    upload_max_filesize = 64M
+    post_max_size = 64M
+    max_execution_time = 300
+    memory_limit = 256M
+    max_input_vars = 3000
+    max_input_time = 300
+    default_socket_timeout = 300
+    mysql.connect_timeout = 300
+    pgsql.connect_timeout = 300
+    session.gc_maxlifetime = 1440
+    session.gc_probability = 1
+    session.gc_divisor = 100
+    session.cookie_secure = 1
+    session.cookie_httponly = 1
+    session.use_only_cookies = 1
+    session.cookie_samesite = "Strict"
+    display_errors = Off
+    log_errors = On
+    error_log = /var/log/php/error.log
+    error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT
+    date.timezone = "America/Denver" 

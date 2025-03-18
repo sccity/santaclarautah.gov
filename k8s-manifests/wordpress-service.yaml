@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: santaclarautah-dev
+  namespace: webprod
+spec:
+  selector:
+    app: santaclarautah-dev
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  type: ClusterIP 

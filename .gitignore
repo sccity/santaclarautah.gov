@@ -1,0 +1,60 @@
+# WordPress specific
+wp-config.php
+wp-config-*.php
+.htaccess
+
+# Environment files
+.env
+*.env
+.env.*
+
+# Kubernetes secrets (but not templates)
+wordpress-secrets.yaml
+k8s-manifests/wordpress-secrets.yaml
+
+# System files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+log/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Local development
+local-*
+dev-*
+*.local.yaml
+
+# Credentials (but not templates)
+*credential.yaml
+*password.yaml
+*secret.yaml
+*token.yaml
+*key.yaml
+*.pem
+*.key
+*.crt
+*.ca
+*.csr
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Node (if using any build tools)
+node_modules/
+npm-debug.log
+
+# Build artifacts
+dist/
+build/
+target/ 

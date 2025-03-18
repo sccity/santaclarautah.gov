@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: santaclarautah-dev
+  namespace: webprod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: santaclarautah-dev
+  template:
+    metadata:
+      labels:
+        app: santaclarautah-dev
+    spec:
+      containers:
+      - name: wordpress
+        image: sccity/santaclarautah:0.4.1
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - secretRef:
+            name: wordpress-db-credentials
+        - secretRef:
+            name: santaclarautah-wordpress-secrets
+        env:
+        - name: WORDPRESS_HOME
+          value: "https://dev.santaclarautah.gov"
+        - name: WORDPRESS_SITEURL
+          value: "https://dev.santaclarautah.gov"
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - curl -k -f -L http://localhost:8080/ || exit 1
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: apache-config
+          mountPath: /etc/apache2/ports.conf
+          subPath: ports.conf
+        - name: apache-config
+          mountPath: /etc/apache2/sites-available/000-default.conf
+          subPath: default.conf
+      volumes:
+      - name: apache-config
+        configMap:
+          name: apache-config
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - key: "type"
+        operator: "Equal"
+        value: "web"
+        effect: "NoSchedule"
+      securityContext:
+        runAsUser: 33
+        runAsGroup: 33
+        fsGroup: 33 
