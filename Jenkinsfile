@@ -74,17 +74,10 @@ spec:
             steps {
                 container('jnlp') {
                     script {
-                        def branch = sh(
-                            script: "git branch --show-current || git rev-parse --abbrev-ref HEAD",
-                            returnStdout: true
-                        ).trim()
-                        
-                        echo "Current branch: ${branch}"
-                        
-                        if (branch != 'dev') {
-                            currentBuild.result = 'ABORTED'
-                            error("Stopping early: this build should only run on dev branch (current: ${branch})")
-                        }
+                        sh """
+                            git checkout dev
+                            git pull origin dev
+                        """
                     }
                 }
             }
