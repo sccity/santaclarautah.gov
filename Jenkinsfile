@@ -74,10 +74,17 @@ spec:
             steps {
                 container('jnlp') {
                     script {
-                        def branch = sh(
-                            script: 'git rev-parse --abbrev-ref HEAD',
-                            returnStdout: true
-                        ).trim()
+                        def branch = env.BRANCH_NAME
+                        
+                        // Fallback if BRANCH_NAME is not available
+                        if (!branch) {
+                            branch = sh(
+                                script: '''
+                                    git name-rev --name-only HEAD | sed "s/^origin\\///" | sed "s/~.*\$//"
+                                ''',
+                                returnStdout: true
+                            ).trim()
+                        }
                         
                         echo "Current branch: ${branch}"
                         
