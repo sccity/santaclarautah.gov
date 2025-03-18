@@ -73,25 +73,25 @@ push_image() {
 update_deployment() {
     local commit_hash=$1
     print_message "$BLUE" "Updating deployment to use new image..."
-    kubectl set image deployment/wordpress wordpress=sccity/santaclarautah:$commit_hash-dev -n devops
+    kubectl set image deployment/santaclarautah-dev santaclarautah=sccity/santaclarautah:$commit_hash-dev -n webprod
 }
 
 # Function to monitor rollout
 monitor_rollout() {
     print_message "$BLUE" "Monitoring deployment rollout..."
-    kubectl rollout status deployment/wordpress -n devops
+    kubectl rollout status deployment/santaclarautah-dev -n webprod
 }
 
 # Function to verify deployment
 verify_deployment() {
     print_message "$BLUE" "Verifying deployment..."
-    local pod_name=$(kubectl get pods -n devops -l app=wordpress -o jsonpath="{.items[0].metadata.name}")
-    local pod_status=$(kubectl get pod $pod_name -n devops -o jsonpath="{.status.phase}")
+    local pod_name=$(kubectl get pods -n webprod -l app=santaclarautah-dev -o jsonpath="{.items[0].metadata.name}")
+    local pod_status=$(kubectl get pod $pod_name -n webprod -o jsonpath="{.status.phase}")
     
     if [ "$pod_status" != "Running" ]; then
         print_message "$RED" "Error: Pod is not running. Status: $pod_status"
         print_message "$YELLOW" "Pod logs:"
-        kubectl logs $pod_name -n devops
+        kubectl logs $pod_name -n webprod
         exit 1
     fi
     
