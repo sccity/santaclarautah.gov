@@ -57,13 +57,41 @@ EOL
     # Start the container first
     docker start $CONTAINER_ID
     
+    # Check container status
+    CONTAINER_STATUS=$(docker inspect -f '{{.State.Status}}' $CONTAINER_ID)
+    if [ "$CONTAINER_STATUS" != "running" ]; then
+        echo "Error: Container failed to start. Status: $CONTAINER_STATUS"
+        echo "Container logs:"
+        docker logs $CONTAINER_ID
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
+    
     # Wait a moment for the container to be fully running
-    sleep 2
+    echo "Waiting for container to initialize..."
+    sleep 5
+    
+    # Check container health
+    if ! docker exec $CONTAINER_ID ps aux | grep -q apache2; then
+        echo "Error: Apache is not running in container"
+        echo "Container logs:"
+        docker logs $CONTAINER_ID
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
     
     # Copy wp-config.php into the container
+    echo "Copying wp-config.php into container..."
     docker cp wp-config.php $CONTAINER_ID:/var/www/html/wp-config.php
     
-    # Wait for Apache to start with timeout
+    # Verify wp-config.php was copied correctly
+    if ! docker exec $CONTAINER_ID test -f /var/www/html/wp-config.php; then
+        echo "Error: Failed to copy wp-config.php into container"
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
+    
+    # Wait for Apache to start with timeout and better error reporting
     echo "Waiting for Apache to start..."
     TIMEOUT=30
     COUNTER=0
@@ -74,12 +102,29 @@ EOL
             echo "Error: Apache failed to start within $TIMEOUT seconds"
             echo "WordPress container logs:"
             docker logs $CONTAINER_ID
+            echo "WordPress container status:"
+            docker inspect $CONTAINER_ID
             echo "MySQL container logs:"
             docker logs $MYSQL_CONTAINER
             docker rm -f $CONTAINER_ID
             exit 1
         fi
+        if [ $((COUNTER % 5)) -eq 0 ]; then
+            echo "Still waiting for Apache to start... ($COUNTER seconds)"
+            echo "Current container logs:"
+            docker logs --tail 20 $CONTAINER_ID
+        fi
     done
+    
+    # Test database connection before proceeding
+    echo "Testing database connection..."
+    if ! docker exec $CONTAINER_ID mysql -h mysql -u wordpress -pwordpress -e "SELECT 1;" >/dev/null 2>&1; then
+        echo "Error: Cannot connect to MySQL database"
+        echo "MySQL container logs:"
+        docker logs $MYSQL_CONTAINER
+        docker rm -f $CONTAINER_ID
+        exit 1
+    fi
     
     # Install WP-CLI
     echo "Installing WP-CLI..."
@@ -95,14 +140,6 @@ EOL
     echo "Testing WordPress core..."
     if ! docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar core verify-checksums --path=/var/www/html; then
         echo "Error: WordPress core verification failed"
-        docker rm -f $CONTAINER_ID
-        exit 1
-    fi
-    
-    # Test database connection
-    echo "Testing database connection..."
-    if ! docker exec $CONTAINER_ID php /var/www/html/wp-cli.phar db check --path=/var/www/html; then
-        echo "Error: Database connection test failed"
         docker rm -f $CONTAINER_ID
         exit 1
     fi
