@@ -3,6 +3,10 @@ FROM wordpress:6.7.2-php8.3-apache
 # Install unzip and curl for plugin installation and health checks
 RUN apt-get update && apt-get install -y unzip curl && rm -rf /var/lib/apt/lists/*
 
+# Configure Apache to use port 8080
+RUN sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf && \
+    sed -i 's/:80/:8080/' /etc/apache2/sites-enabled/*.conf
+
 # Create necessary directories with correct permissions
 RUN mkdir -p /var/www/html/wp-content/plugins && \
     mkdir -p /var/www/html/wp-content/uploads && \

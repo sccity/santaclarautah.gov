@@ -21,9 +21,25 @@ sh '''
     
     # Create WordPress container with database connection
     echo "Starting WordPress container..."
+    
+    # Create wp-config.php with database settings
+    docker exec $MYSQL_CONTAINER mysql -uwordpress -pwordpress -e "CREATE DATABASE IF NOT EXISTS wordpress;"
+    
+    # Create a temporary wp-config.php file
+    cat > wp-config.php << 'EOL'
+<?php
+define('DB_NAME', 'wordpress');
+define('DB_USER', 'wordpress');
+define('DB_PASSWORD', 'wordpress');
+define('DB_HOST', 'mysql');
+define('DB_CHARSET', 'utf8');
+define('DB_COLLATE', '');
+define('WP_DEBUG', true);
+EOL
+    
     CONTAINER_ID=$(docker create --rm \
         --network wordpress_test_network \
-        -p 8080:8080 \
+        -p 8080:80 \
         -e WORDPRESS_DB_HOST=mysql \
         -e WORDPRESS_DB_NAME=wordpress \
         -e WORDPRESS_DB_USER=wordpress \
@@ -35,18 +51,26 @@ sh '''
         exit 1
     fi
     
+    # Copy wp-config.php into the container
+    docker cp wp-config.php $CONTAINER_ID:/var/www/html/wp-config.php
+    docker exec $CONTAINER_ID chown www-data:www-data /var/www/html/wp-config.php
+    docker exec $CONTAINER_ID chmod 644 /var/www/html/wp-config.php
+    
     docker start $CONTAINER_ID
     
     # Wait for Apache to start with timeout
     echo "Waiting for Apache to start..."
     TIMEOUT=30
     COUNTER=0
-    while ! docker exec $CONTAINER_ID curl -s http://localhost:8080 >/dev/null; do
+    while ! docker exec $CONTAINER_ID curl -s http://localhost >/dev/null; do
         sleep 1
         COUNTER=$((COUNTER + 1))
         if [ $COUNTER -ge $TIMEOUT ]; then
             echo "Error: Apache failed to start within $TIMEOUT seconds"
+            echo "WordPress container logs:"
             docker logs $CONTAINER_ID
+            echo "MySQL container logs:"
+            docker logs $MYSQL_CONTAINER
             docker rm -f $CONTAINER_ID
             exit 1
         fi
