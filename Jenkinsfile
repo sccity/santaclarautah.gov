@@ -18,15 +18,17 @@ spec:
       securityContext:
         privileged: true
       command: ["dockerd-entrypoint.sh"]
-      args: ["--host=tcp://0.0.0.0:2375"]
+      args: ["--host=unix:///var/run/docker.sock"]
       env:
         - name: DOCKER_HOST
-          value: "tcp://localhost:2375"
+          value: "unix:///var/run/docker.sock"
       volumeMounts:
         - name: docker-lib
           mountPath: /var/lib/docker
         - name: workspace-volume
           mountPath: /home/jenkins/agent
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
 
     - name: kubectl
       image: bitnami/kubectl:latest
@@ -40,6 +42,8 @@ spec:
     - name: workspace-volume
       emptyDir: {}
     - name: docker-lib
+      emptyDir: {}
+    - name: docker-sock
       emptyDir: {}
 
   nodeSelector:
