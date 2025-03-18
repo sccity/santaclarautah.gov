@@ -18,10 +18,8 @@ spec:
       securityContext:
         privileged: true
       command: ["dockerd-entrypoint.sh"]
-      args: ["--host=tcp://0.0.0.0:2375", "--tls=false"]
+      args: ["--host=tcp://0.0.0.0:2375"]
       env:
-        - name: DOCKER_TLS_VERIFY
-          value: "0"
         - name: DOCKER_HOST
           value: "tcp://localhost:2375"
       volumeMounts:
