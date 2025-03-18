@@ -1,12 +1,23 @@
 sh '''
     # Load environment variables from initialize stage
+    if [ ! -f env.properties ]; then
+        echo "Error: env.properties not found. Initialize stage must run first."
+        exit 1
+    fi
+    
     source env.properties
+    
+    # Validate required environment variables
+    if [ -z "$MYSQL_CONTAINER" ] || [ -z "$NETWORK_NAME" ] || [ -z "$IMAGE_NAME" ]; then
+        echo "Error: Required environment variables not set"
+        echo "MYSQL_CONTAINER: $MYSQL_CONTAINER"
+        echo "NETWORK_NAME: $NETWORK_NAME"
+        echo "IMAGE_NAME: $IMAGE_NAME"
+        exit 1
+    fi
     
     # Test WordPress installation
     echo "Testing WordPress installation..."
-    
-    # Get the image name from the build
-    IMAGE_NAME="sccity/santaclarautah:${GIT_COMMIT:0:7}-dev"
     
     # Create WordPress container with database connection
     echo "Starting WordPress container..."
@@ -18,6 +29,11 @@ sh '''
         -e WORDPRESS_DB_USER=wordpress \
         -e WORDPRESS_DB_PASSWORD=wordpress \
         $IMAGE_NAME)
+    
+    if [ -z "$CONTAINER_ID" ]; then
+        echo "Error: Failed to create WordPress container"
+        exit 1
+    fi
     
     docker start $CONTAINER_ID
     

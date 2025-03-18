@@ -62,8 +62,16 @@ spec:
 
         stage('Prepare') {
             steps {
-                container('jnlp') {
+                container('docker') {
                     load './jenkins/03_prepare.groovy'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                container('docker') {
+                    load './jenkins/03_build.groovy'
                 }
             }
         }
