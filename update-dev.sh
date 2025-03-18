@@ -29,7 +29,7 @@ fi
 # Stash any local changes
 echo "Stashing local changes..."
 git stash
-check_status "Failed to stash changes"
+# Don't check status as it will fail if there are no changes
 
 # Pull latest changes
 echo "Pulling latest changes from dev branch..."
@@ -38,22 +38,28 @@ check_status "Failed to pull latest changes"
 
 # Pop stashed changes
 echo "Restoring local changes..."
-git stash pop
-# Don't check status here as it might fail if there were no stashed changes
+git stash pop 2>/dev/null || true
+# Don't check status as it will fail if there were no stashed changes
 
 # Add all changes
 echo "Adding all changes..."
 git add .
 check_status "Failed to add changes"
 
-# Commit with provided message
-echo "Committing changes..."
-git commit -m "$COMMIT_MESSAGE"
-check_status "Failed to commit changes"
+# Check if there are changes to commit
+if ! git diff --cached --quiet; then
+    # Changes exist, commit them
+    echo "Committing changes..."
+    git commit -m "$COMMIT_MESSAGE"
+    check_status "Failed to commit changes"
 
-# Push to dev branch
-echo "Pushing to dev branch..."
-git push origin dev
-check_status "Failed to push changes"
+    # Push to dev branch
+    echo "Pushing to dev branch..."
+    git push origin dev
+    check_status "Failed to push changes"
 
-echo "Success! All changes have been pushed to dev branch" 
+    echo "Success! All changes have been pushed to dev branch"
+else
+    echo "No changes to commit. Working tree is clean."
+    exit 0
+fi 
