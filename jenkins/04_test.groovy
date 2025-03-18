@@ -8,26 +8,6 @@ sh '''
     # Get the image name from the build
     IMAGE_NAME="sccity/santaclarautah:${GIT_COMMIT:0:7}-dev"
     
-    # Create a network for the containers
-    NETWORK_NAME="wordpress_test_network"
-    docker network create $NETWORK_NAME
-    
-    # Start MySQL container
-    echo "Starting MySQL container..."
-    MYSQL_CONTAINER=$(docker run -d --rm \
-        --network $NETWORK_NAME \
-        -e MYSQL_ROOT_PASSWORD=test_password \
-        -e MYSQL_DATABASE=wordpress \
-        -e MYSQL_USER=wordpress \
-        -e MYSQL_PASSWORD=wordpress \
-        mysql:8.0)
-    
-    # Wait for MySQL to be ready
-    echo "Waiting for MySQL to be ready..."
-    until docker exec $MYSQL_CONTAINER mysqladmin ping -h localhost -u root -ptest_password --silent; do
-        sleep 1
-    done
-    
     # Create WordPress container with database connection
     echo "Starting WordPress container..."
     CONTAINER_ID=$(docker create --rm \
@@ -83,9 +63,8 @@ sh '''
     
     echo "WordPress installation is accessible and ready for setup (HTTP 302)"
     
-    # Clean up
+    # Clean up WordPress container
     docker rm -f $CONTAINER_ID
-    docker network rm $NETWORK_NAME
     
     echo "All tests passed successfully!"
 '''
