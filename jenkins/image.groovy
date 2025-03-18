@@ -3,7 +3,7 @@ withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable:
     commit_hash=$(cat commit_hash.txt)
     branch=$(cat branch.txt)
 
-    image=sccity/influence360
+    image=sccity/santaclarautah
 
     if [ -z "$commit_hash" ]; then
         echo "Error: Commit Hash File is Missing!"
