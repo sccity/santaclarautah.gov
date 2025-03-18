@@ -62,6 +62,8 @@ spec:
         buildDiscarder(logRotator(numToKeep: 10))
         // Don't run concurrent builds for the same branch
         disableConcurrentBuilds()
+        // Add timestamps to the build log
+        timestamps()
     }
 
     stages {
