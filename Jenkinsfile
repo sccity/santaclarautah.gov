@@ -80,7 +80,8 @@ spec:
                         if (!branch) {
                             branch = sh(
                                 script: '''
-                                    git name-rev --name-only HEAD | sed "s/^origin\\///" | sed "s/~.*\$//"
+                                    git rev-parse --abbrev-ref HEAD || \
+                                    (git branch -r --contains HEAD | grep -v HEAD | head -n1 | sed 's#^[[:space:]]*origin/##')
                                 ''',
                                 returnStdout: true
                             ).trim()
