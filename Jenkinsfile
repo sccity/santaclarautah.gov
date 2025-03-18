@@ -117,7 +117,7 @@ spec:
                     script {
                         // Build Docker image
                         sh """
-                            docker build --platform linux/amd64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
+                            docker build --platform linux/amd64 --network host -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
                         """
 
                         // Basic test to verify WordPress files exist
@@ -252,12 +252,6 @@ spec:
                     body: """
                         <p>The build failed for ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
                         <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
-                        <p><b>Changes in this build:</b></p>
-                        <pre>${currentBuild.changeSets.collect { cs -> 
-                            cs.entries.collect { entry ->
-                                "- ${entry.msg} (${entry.author})"
-                            }.join('\n')
-                        }.join('\n')}</pre>
                         <p><b>Console Output (last 100 lines):</b></p>
                         <pre>${currentBuild.rawBuild.getLog(100).join('\n')}</pre>
                     """,
@@ -275,12 +269,6 @@ spec:
                     body: """
                         <p>The build is unstable for ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
                         <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
-                        <p><b>Changes in this build:</b></p>
-                        <pre>${currentBuild.changeSets.collect { cs -> 
-                            cs.entries.collect { entry ->
-                                "- ${entry.msg} (${entry.author})"
-                            }.join('\n')
-                        }.join('\n')}</pre>
                     """,
                     to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
                     replyTo: 'no-reply@santaclarautah.gov',
@@ -295,12 +283,6 @@ spec:
                     body: """
                         <p>The build has been fixed in ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
                         <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
-                        <p><b>Changes that fixed the build:</b></p>
-                        <pre>${currentBuild.changeSets.collect { cs -> 
-                            cs.entries.collect { entry ->
-                                "- ${entry.msg} (${entry.author})"
-                            }.join('\n')
-                        }.join('\n')}</pre>
                     """,
                     to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
                     replyTo: 'no-reply@santaclarautah.gov',
