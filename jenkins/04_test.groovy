@@ -51,12 +51,16 @@ EOL
         exit 1
     fi
     
+    # Start the container first
+    docker start $CONTAINER_ID
+    
+    # Wait a moment for the container to be fully running
+    sleep 2
+    
     # Copy wp-config.php into the container
     docker cp wp-config.php $CONTAINER_ID:/var/www/html/wp-config.php
     docker exec $CONTAINER_ID chown www-data:www-data /var/www/html/wp-config.php
     docker exec $CONTAINER_ID chmod 644 /var/www/html/wp-config.php
-    
-    docker start $CONTAINER_ID
     
     # Wait for Apache to start with timeout
     echo "Waiting for Apache to start..."
