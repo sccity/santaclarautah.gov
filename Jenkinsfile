@@ -46,7 +46,7 @@ spec:
     stages {
         stage('Initialize') {
             steps {
-                container('jnlp') {
+                container('docker') {
                     load './jenkins/01_initialize.groovy'
                 }
             }
