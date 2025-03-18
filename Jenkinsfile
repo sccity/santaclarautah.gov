@@ -22,6 +22,8 @@ spec:
       volumeMounts:
         - name: docker-lib
           mountPath: /var/lib/docker
+        - name: workspace-volume
+          mountPath: /home/jenkins/agent
 
   volumes:
     - name: workspace-volume
@@ -68,7 +70,7 @@ spec:
 
         stage('Test') {
             steps {
-                container('jnlp') {
+                container('docker') {
                     load './jenkins/04_test.groovy'
                 }
             }

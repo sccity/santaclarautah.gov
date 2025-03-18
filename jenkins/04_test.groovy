@@ -3,7 +3,7 @@ sh '''
     echo "Testing WordPress installation..."
     
     # Get the image name from the build
-    IMAGE_NAME="sccity/santaclarautah:${COMMIT_HASH}-dev"
+    IMAGE_NAME="sccity/santaclarautah:${GIT_COMMIT:0:7}-dev"
     
     # Create a temporary container for testing
     CONTAINER_ID=$(docker create --rm -p 8080:8080 $IMAGE_NAME)
