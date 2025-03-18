@@ -1,5 +1,5 @@
 sh '''
-    # Test WordPress installation
+    # Test WordPress installation..
     echo "Testing WordPress installation..."
     
     # Check if WordPress files exist
