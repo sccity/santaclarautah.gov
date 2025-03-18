@@ -66,6 +66,23 @@ spec:
         timestamps()
     }
 
+    // Add specific triggers for GitHub webhook
+    triggers {
+        githubPush()
+        GenericTrigger(
+            genericVariables: [
+                [key: 'ref', value: '$.ref']
+            ],
+            causeString: 'Triggered by GitHub push',
+            token: 'santaclarautah-dev',
+            printContributedVariables: true,
+            printPostContent: true,
+            silentResponse: false,
+            regexpFilterText: '$ref',
+            regexpFilterExpression: 'refs/heads/dev'
+        )
+    }
+
     stages {
         stage('Check Branch') {
             steps {
