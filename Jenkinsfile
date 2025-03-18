@@ -74,24 +74,11 @@ spec:
             steps {
                 container('jnlp') {
                     script {
-                        def branch = env.BRANCH_NAME
+                        echo "Current branch: ${env.BRANCH_NAME}"
                         
-                        // Fallback if BRANCH_NAME is not available
-                        if (!branch) {
-                            branch = sh(
-                                script: '''
-                                    git rev-parse --abbrev-ref HEAD || \
-                                    (git branch -r --contains HEAD | grep -v HEAD | head -n1 | sed 's#^[[:space:]]*origin/##')
-                                ''',
-                                returnStdout: true
-                            ).trim()
-                        }
-                        
-                        echo "Current branch: ${branch}"
-                        
-                        if (branch != 'dev') {
+                        if (env.BRANCH_NAME != 'dev') {
                             currentBuild.result = 'ABORTED'
-                            error("Stopping early: this build should only run on dev branch (current: ${branch})")
+                            error("Stopping early: this build should only run on dev branch (current: ${env.BRANCH_NAME})")
                         }
                     }
                 }
