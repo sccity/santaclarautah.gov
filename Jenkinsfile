@@ -18,7 +18,7 @@ spec:
       securityContext:
         privileged: true
       command: ["dockerd-entrypoint.sh"]
-      args: ["--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock", "--tls=false"]
+      args: ["--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock"]
       env:
         - name: DOCKER_TLS_VERIFY
           value: "0"
@@ -120,7 +120,7 @@ spec:
                     script {
                         // Build Docker image
                         sh """
-                            docker build --platform linux/amd64 --network host -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
+                            docker build --platform linux/amd64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
                         """
 
                         // Basic test to verify WordPress files exist
