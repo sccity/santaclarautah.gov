@@ -18,7 +18,10 @@ spec:
       securityContext:
         privileged: true
       command: ["dockerd-entrypoint.sh"]
+      args: ["--host=tcp://0.0.0.0:2375"]
       env:
+        - name: DOCKER_HOST
+          value: "tcp://localhost:2375"
         - name: DOCKER_TLS_VERIFY
           value: "0"
       volumeMounts:
@@ -117,6 +120,11 @@ spec:
                 container('docker') {
                     withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         script {
+                            // Wait for Docker daemon to be ready
+                            sh """
+                                timeout 30s sh -c 'until docker info; do sleep 1; done'
+                            """
+                            
                             // Login to Docker Hub first
                             sh """
                                 echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
