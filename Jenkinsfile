@@ -119,7 +119,7 @@ spec:
                     script {
                         // Build Docker image
                         sh """
-                            docker build --platform linux/x86_64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} .
+                            docker build --platform linux/x86_64 -t ${DOCKER_REGISTRY}/${APP_NAME}:${env.NEW_VERSION} --push .
                         """
 
                         // Basic test to verify WordPress files exist
