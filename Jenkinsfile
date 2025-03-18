@@ -80,8 +80,8 @@ spec:
     // GitHub webhook trigger configuration
     triggers {
         githubPush()
-        // Fallback polling every 5 minutes if webhook fails
-        pollSCM('H/5 * * * *')
+        // Daily build at 2 AM
+        cron('0 2 * * *')
     }
 
     stages {
