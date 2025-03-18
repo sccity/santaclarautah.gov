@@ -302,7 +302,7 @@ spec:
                 emailext (
                     subject: "✅ Build Fixed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
-                        <p>The build has been fixed in ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
+                        <p>The build hass been fixed in ${env.JOB_NAME} #${env.BUILD_NUMBER}</p>
                         <p><b>Build URL:</b> <a href='${env.BUILD_URL}'>${env.BUILD_URL}</a></p>
                     """,
                     to: 'rlevsey@santaclarautah.gov, lhaynie@santaclarautah.gov',
